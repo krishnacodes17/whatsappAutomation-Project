@@ -4,6 +4,10 @@ const {
   generateToken,
   generateRefreshToken,
   storeSession,
+  storeActivityLog,
+  blacklistToken,
+  deleteSession,
+  getSession,
 } = require("./token.service");
 const { Error } = require("mongoose");
 
@@ -143,4 +147,35 @@ async function loginUserService(userData) {
 
 
 
-module.exports = { registerUSerService , loginUserService };
+async function logoutUserService(token) {
+  try {
+    if (!token) {
+      throw new Error("Token is required");
+    }
+
+    // 1. Get session from Redis
+    const session = await getSession(token);
+    
+    // 2. Store activity log 
+    if (session) {
+      await storeActivityLog(session.userId, 'LOGOUT');
+    }
+
+    // 3. Delete session from Redis
+    await deleteSession(token);
+
+    // 4. Blacklist token 
+    await blacklistToken(token);
+
+    return {
+      success: true,
+      message: 'Logged out successfully'
+    };
+
+  } catch (error) {
+    throw new Error(error.message);
+  }
+}
+
+
+module.exports = { registerUSerService , loginUserService  , logoutUserService};

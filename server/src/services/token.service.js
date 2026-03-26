@@ -40,7 +40,7 @@ const verifyToken = (token)=>{
 //  store Session in redis
 const storeSession = async (token , userData)=>{
     try {
-        await redisClient.setEx(`session: ${token}`, 7*24*60*60, JSON.stringify(userData))
+         await redisClient.setEx(`session:${token}`, 7*24*60*60, JSON.stringify(userData))
     } catch (error) {
         console.error('Error storing session:', error);
     }
@@ -69,11 +69,57 @@ const deleteSession = async (token) => {
 };
 
 
+
+
+const blacklistToken = async (token) => {
+  try {
+    await redisClient.setEx(
+      `blacklist:${token}`,
+      24 * 60 * 60,  
+      'true'
+    );
+    console.log('Token blacklisted successfully');
+  } catch (error) {
+    console.error('Error blacklisting token:', error);
+  }
+};
+
+// Check if token blacklisted
+const isTokenBlacklisted = async (token) => {
+  try {
+    const result = await redisClient.get(`blacklist:${token}`);
+    return result !== null;
+  } catch (error) {
+    console.error('Error checking blacklist:', error);
+    return false;
+  }
+};
+
+// Store activity log
+const storeActivityLog = async (userId, action, metadata = {}) => {
+  try {
+    const logKey = `activity:${userId}:${new Date().toISOString()}`;
+    await redisClient.setEx(
+      logKey,
+      30 * 24 * 60 * 60,  // 30 days
+      JSON.stringify({ action, ...metadata, timestamp: new Date() })
+    );
+  } catch (error) {
+    console.error('Error storing activity log:', error);
+  }
+};
+
+
+
+
 module.exports = {
     generateToken,
     generateRefreshToken,
     verifyToken,
     storeSession,
     getSession,
-    deleteSession
+    deleteSession,
+    blacklistToken,
+    isTokenBlacklisted,
+    storeActivityLog
 }

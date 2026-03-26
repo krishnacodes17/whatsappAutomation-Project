@@ -2,6 +2,7 @@ const User = require("../models/User");
 const {
   registerUSerService,
   loginUserService,
+  logoutUserService
 } = require("../services/auth.service");
 
 //  register user
@@ -71,4 +72,44 @@ async function loginUserController(req, res) {
   }
 }
 
-module.exports = { registerUserController, loginUserController };
+
+async function logoutUserController(req,res) {
+   try {
+    const token = req.cookies.accessToken;
+    if(!token){
+      return res.status(400).json({
+        success: false,
+        message: 'No token found'
+      });
+    }
+
+     const result = await logoutUserService(token);
+
+     res.clearCookie('accessToken', {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'strict'
+    });
+
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'strict'
+    });
+
+     res.status(200).json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+
+
+
+   } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+   }
+}
+
+module.exports = { registerUserController, loginUserController , logoutUserController};
