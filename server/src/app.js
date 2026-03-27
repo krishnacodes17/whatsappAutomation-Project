@@ -8,10 +8,11 @@ app.use(cookieParser())
 
 
 const authRouter = require("./router/auth.routers")
-
+const groupRouter = require("./router/group.router")
 
 
 app.use("/api/auth",authRouter)
+app.use("/api/groups",groupRouter)
 
 
 
