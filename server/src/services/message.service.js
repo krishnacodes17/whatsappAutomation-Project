@@ -1,7 +1,8 @@
 const Message = require("../models/message.model");
 const Group = require("../models/group.model");
+const { messageQueue } = require("../config/queue");
 
-// Send message to group
+// Send message to group (adds to queue)
 async function sendMessageService(groupId, userId, message) {
   try {
     // Find group and get members
@@ -24,17 +25,28 @@ async function sendMessageService(groupId, userId, message) {
 
     await newMessage.save();
 
-    // Send to all members (WhatsApp API integration would go here)
-    const memberIds = group.members.map((m) => m.userId._id.toString());
-
-    // Mock: Update as sent
-    newMessage.status = "sent";
-    newMessage.deliveredTo = memberIds.map((id) => ({
-      userId: id,
-      deliveredAt: new Date(),
+    // Get members for queue job
+    const groupMembers = group.members.map((m) => ({
+      _id: m.userId._id,
+      phone: m.userId.email, // or phone number if available
     }));
 
-    await newMessage.save();
+    // Add to queue instead of sending directly
+    await messageQueue.add(
+      {
+        messageId: newMessage._id,
+        userId,
+        groupMembers,
+      },
+      {
+        attempts: 3,  // Retry 3 times
+        backoff: {
+          type: "exponential",
+          delay: 2000,  // Start with 2 seconds
+        },
+        removeOnComplete: true,
+      }
+    );
 
     return newMessage;
   } catch (error) {

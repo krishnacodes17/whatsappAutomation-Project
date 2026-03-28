@@ -1,7 +1,7 @@
 require("dotenv").config()
+require("./src/workers/messageWorker");
 const app = require("./src/app")
 const connectDB = require("./src/config/database")
-
 
 connectDB()
 
