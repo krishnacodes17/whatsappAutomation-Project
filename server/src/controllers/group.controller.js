@@ -1,3 +1,6 @@
+const {parseCSVFile , getUserIdsFromEmails} = require("../services/csv.service")
+const fs = require("fs")
+
 const {
   createGroupService,
   getGroupByIdService,
@@ -140,6 +143,64 @@ async function removeGroupMemberController(req, res) {
   }
 }
 
+
+
+async function uploadCSVController(req, res) {
+  try {
+    const { groupId } = req.params;
+    const userId = req.user.id;
+    
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No file uploaded"
+      });
+    }
+
+    // Parse CSV file
+    const emails = await parseCSVFile(req.file.path);
+
+    // Get user IDs from emails
+    const memberIds = await getUserIdsFromEmails(emails);
+
+    if (memberIds.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No matching users found in CSV"
+      });
+    }
+
+    // Add members to group
+    const updatedGroup = await addMembersService(
+      groupId,
+      memberIds,
+      userId
+    );
+
+    // Delete uploaded file after processing
+    fs.unlinkSync(req.file.path);
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully added ${memberIds.length} members`,
+      data: updatedGroup
+    });
+  } catch (error) {
+    // Delete file on error
+    if (req.file) fs.unlinkSync(req.file.path);
+    
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+}
+
+
+
+
+
+
 module.exports = {
   createGroupController,
   getGroupByIdController,
@@ -147,4 +208,5 @@ module.exports = {
   addMembersController,
   getMembersController,
   removeGroupMemberController,
+  uploadCSVController
 };

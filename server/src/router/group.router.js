@@ -1,7 +1,8 @@
 const express = require("express")
 
 const authMiddleware = require("../middleware/auth.middleware");
-const { createGroupController, getAllGroupsController, getGroupByIdController, getMembersController, addMembersController, removeGroupMemberController } = require("../controllers/group.controller");
+const { createGroupController, getAllGroupsController, getGroupByIdController, getMembersController, addMembersController, removeGroupMemberController, uploadCSVController } = require("../controllers/group.controller");
+const upload = require("../config/multer");
 
 
 const router = express.Router();
@@ -29,5 +30,12 @@ router.post("/:groupId/add-members", addMembersController);
 
 // Remove member from group - DELETE /api/groups/:groupId/member/:memberId
 router.delete("/:groupId/member/:memberId", removeGroupMemberController);
+
+router.post(
+  "/:groupId/upload-csv", 
+  upload.single("file"),  // ← Middleware: expect file named "file"
+  uploadCSVController
+);
+
 
 module.exports = router;
