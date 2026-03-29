@@ -30,6 +30,23 @@ const UserSchema = new mongoose.Schema(
       },
     ],
 
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+
+    inviteLink: {
+      type: String,
+      unique: true,
+      sparse: true,
+      default: null,
+    },
+
+    inviteLinkGeneratedAt: {
+      type: Date,
+      default: null,
+    },
+
     createdAt: {
       type: Date,
       default: Date.now,

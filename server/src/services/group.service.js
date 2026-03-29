@@ -1,4 +1,5 @@
 const Group = require("../models/group.model");
+const { generateInviteLink, buildFullInviteLink } = require("./inviteLink.service");
 
 // create group
 async function createGroupService(groupData) {
@@ -116,11 +117,71 @@ async function removeGroupMemberService(groupId, memberId, userId) {
   return updatedGroup;
 }
 
+
+// Generate invite link for group
+async function generateInviteLinkService(groupId, userId) {
+  const group = await Group.findById(groupId);
+
+  if (!group) {
+    throw new Error("Group not found");
+  }
+
+  // Check if user is admin
+  if (group.adminId.toString() !== userId.toString()) {
+    throw new Error("Only admin can generate invite link");
+  }
+
+  // Generate new invite link
+  const inviteCode = generateInviteLink();
+  const fullLink = buildFullInviteLink(inviteCode);
+
+  // Update group
+  group.inviteLink = inviteCode;
+  group.inviteLinkGeneratedAt = new Date();
+  await group.save();
+
+  return {
+    groupId: group._id,
+    inviteCode,
+    inviteLink: fullLink,
+    generatedAt: group.inviteLinkGeneratedAt
+  };
+}
+
+
+// Deactivate group (only admin)
+async function deactivateGroupService(groupId, userId) {
+  const group = await Group.findById(groupId);
+
+  if (!group) {
+    throw new Error("Group not found");
+  }
+
+  // Check if user is admin
+  if (group.adminId.toString() !== userId.toString()) {
+    throw new Error("Only admin can deactivate group");
+  }
+
+  // Check if already inactive
+  if (!group.isActive) {
+    throw new Error("Group is already inactive");
+  }
+
+  // Deactivate
+  group.isActive = false;
+  await group.save();
+
+  return group;
+}
+
+
 module.exports = {
   createGroupService,
   getGroupByIdService,
   getAllGroupsService,
   addMembersService,
   getMembersService,
-  removeGroupMemberService
+  removeGroupMemberService,
+  generateInviteLinkService,
+  deactivateGroupService
 };

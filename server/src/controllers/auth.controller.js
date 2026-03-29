@@ -2,7 +2,9 @@ const User = require("../models/User");
 const {
   registerUSerService,
   loginUserService,
-  logoutUserService
+  logoutUserService,
+  forgotPasswordService,
+  resetPasswordService
 } = require("../services/auth.service");
 
 //  register user
@@ -112,4 +114,60 @@ async function logoutUserController(req,res) {
    }
 }
 
-module.exports = { registerUserController, loginUserController , logoutUserController};
+// Forgot password controller
+async function forgotPasswordController(req, res) {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email is required'
+      });
+    }
+
+    const result = await forgotPasswordService(email);
+
+    res.status(200).json(result);
+
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+}
+
+
+// Reset password controller
+async function resetPasswordController(req, res) {
+  try {
+    const { email, resetToken, newPassword, confirmPassword } = req.body;
+
+    if (!email || !resetToken || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email, reset token, and new password are required'
+      });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Passwords do not match'
+      });
+    }
+
+    const result = await resetPasswordService(email, resetToken, newPassword);
+
+    res.status(200).json(result);
+
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+}
+
+module.exports = { registerUserController, loginUserController , logoutUserController, forgotPasswordController, resetPasswordController};

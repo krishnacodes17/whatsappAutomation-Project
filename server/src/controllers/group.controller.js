@@ -1,5 +1,6 @@
-const {parseCSVFile , getUserIdsFromEmails} = require("../services/csv.service")
+const {parseCSVFile, parseCSVForMembers, getUserIdsFromEmails} = require("../services/csv.service")
 const fs = require("fs")
+const Group = require("../models/group.model");
 
 const {
   createGroupService,
@@ -8,7 +9,13 @@ const {
   addMembersService,
   getMembersService,
   removeGroupMemberService,
+  generateInviteLinkService,
+  deactivateGroupService,
 } = require("../services/group.service");
+
+const {
+  addMembersService: addMembersToMemberModel,
+} = require("../services/member.service");
 
 async function createGroupController(req, res) {
   try {
@@ -157,38 +164,101 @@ async function uploadCSVController(req, res) {
       });
     }
 
-    // Parse CSV file
-    const emails = await parseCSVFile(req.file.path);
-
-    // Get user IDs from emails
-    const memberIds = await getUserIdsFromEmails(emails);
-
-    if (memberIds.length === 0) {
+    // Verify user owns the group
+    const group = await Group.findById(groupId);
+    if (!group) {
+      fs.unlinkSync(req.file.path);
       return res.status(404).json({
         success: false,
-        message: "No matching users found in CSV"
+        message: "Group not found"
       });
     }
 
-    // Add members to group
-    const updatedGroup = await addMembersService(
-      groupId,
-      memberIds,
-      userId
-    );
+    if (group.adminId.toString() !== userId) {
+      fs.unlinkSync(req.file.path);
+      return res.status(403).json({
+        success: false,
+        message: "Only admin can upload members"
+      });
+    }
 
-    // Delete uploaded file after processing
+    // Parse CSV file for members (phone, desiredName)
+    const members = await parseCSVForMembers(req.file.path);
+
+    if (members.length === 0) {
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({
+        success: false,
+        message: "No valid members found in CSV. CSV should have columns: phone, desiredName"
+      });
+    }
+
+    // Add members to Member model (not Group.members)
+    const batchId = `batch_${Date.now()}`;
+    const result = await addMembersToMemberModel(groupId, members, batchId);
+
+    // Delete uploaded file
     fs.unlinkSync(req.file.path);
 
     res.status(200).json({
       success: true,
-      message: `Successfully added ${memberIds.length} members`,
+      message: `Uploaded ${result.uploadedCount} members, ${result.failedCount} failed`,
+      ...result
+    });
+
+  } catch (error) {
+    if (req.file && req.file.path) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (err) {
+        // File already deleted
+      }
+    }
+
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+}
+
+
+// Generate invite link for group (admin only)
+async function generateInviteLinkController(req, res) {
+  try {
+    const { groupId } = req.params;
+    const userId = req.user.id;
+
+    const result = await generateInviteLinkService(groupId, userId);
+
+    res.status(200).json({
+      success: true,
+      message: "Invite link generated successfully",
+      data: result
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+}
+
+
+// Deactivate group (admin only)
+async function deactivateGroupController(req, res) {
+  try {
+    const { groupId } = req.params;
+    const userId = req.user.id;
+
+    const updatedGroup = await deactivateGroupService(groupId, userId);
+
+    res.status(200).json({
+      success: true,
+      message: "Group deactivated successfully",
       data: updatedGroup
     });
   } catch (error) {
-    // Delete file on error
-    if (req.file) fs.unlinkSync(req.file.path);
-    
     res.status(400).json({
       success: false,
       message: error.message
@@ -208,5 +278,7 @@ module.exports = {
   addMembersController,
   getMembersController,
   removeGroupMemberController,
-  uploadCSVController
+  uploadCSVController,
+  generateInviteLinkController,
+  deactivateGroupController
 };

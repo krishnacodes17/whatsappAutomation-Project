@@ -178,4 +178,96 @@ async function logoutUserService(token) {
 }
 
 
-module.exports = { registerUSerService , loginUserService  , logoutUserService};
+// Forgot password service - generates reset token
+async function forgotPasswordService(email) {
+  try {
+    if (!email) {
+      throw new Error("Email is required");
+    }
+
+    // Find user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      // Don't reveal if email exists (security)
+      return {
+        success: true,
+        message: "If email exists, reset token has been sent"
+      };
+    }
+
+    // Generate reset token (6-character alphanumeric)
+    const resetToken = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const resetTokenExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    // Store token in user document
+    user.resetToken = resetToken;
+    user.resetTokenExpires = resetTokenExpires;
+    await user.save();
+
+    // Log activity
+    await storeActivityLog(user._id.toString(), 'FORGOT_PASSWORD_REQUEST', { email });
+
+    return {
+      success: true,
+      message: "If email exists, reset token has been sent",
+      // For development: remove in production
+      resetToken: process.env.NODE_ENV === 'development' ? resetToken : undefined
+    };
+
+  } catch (error) {
+    throw new Error(error.message);
+  }
+}
+
+
+// Reset password service - validates token and sets new password
+async function resetPasswordService(email, resetToken, newPassword) {
+  try {
+    if (!email || !resetToken || !newPassword) {
+      throw new Error("Email, reset token, and new password are required");
+    }
+
+    if (newPassword.length < 6) {
+      throw new Error("Password must be at least 6 characters");
+    }
+
+    // Find user and verify reset token
+    const user = await User.findOne({ email }).select('+resetToken +resetTokenExpires');
+    
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Check if token is valid and not expired
+    if (user.resetToken !== resetToken) {
+      throw new Error("Invalid reset token");
+    }
+
+    if (!user.resetTokenExpires || user.resetTokenExpires < new Date()) {
+      throw new Error("Reset token has expired");
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password and clear reset token
+    user.password = hashedPassword;
+    user.resetToken = null;
+    user.resetTokenExpires = null;
+    await user.save();
+
+    // Log activity
+    await storeActivityLog(user._id.toString(), 'PASSWORD_RESET', { email });
+
+    return {
+      success: true,
+      message: "Password reset successfully"
+    };
+
+  } catch (error) {
+    throw new Error(error.message);
+  }
+}
+
+
+module.exports = { registerUSerService, loginUserService, logoutUserService, forgotPasswordService, resetPasswordService };
